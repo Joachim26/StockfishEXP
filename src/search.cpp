@@ -2209,7 +2209,7 @@ moves_loop: // When in check, search starts here
     // Our exploration constant.
     // Lower values lead to more exploitation,
     // higher values to more exploration.
-    constexpr double C = 1.6 * std::sqrt(2);
+    constexpr double C = 1.6 * 1.41421356; //clang wants a CONSTANT
 
     double X = Q / N;
     double Y = std::sqrt(std::log(parentN) / N);
