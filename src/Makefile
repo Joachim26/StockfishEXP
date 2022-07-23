@@ -1,8 +1,3 @@
-# Updated Makefile for StockfishNPS building on Termux
-# works for clang, gcc, ndk, armv8, armv7, and pgo.
-#
-#
-#
 # Stockfish, a UCI chess playing engine derived from Glaurung 2.1
 # Copyright (C) 2004-2022 The Stockfish developers (see AUTHORS file)
 #
@@ -61,9 +56,10 @@ else
 endif
 
 ### Source and object files
-SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
-	misc.cpp movegen.cpp movepick.cpp neuralnet.cpp position.cpp \
-	search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp syzygy/tbprobe.cpp
+SRCS = benchmark.cpp bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp main.cpp \
+	material.cpp misc.cpp movegen.cpp movepick.cpp pawns.cpp position.cpp psqt.cpp \
+	search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp syzygy/tbprobe.cpp \
+	nnue/evaluate_nnue.cpp nnue/features/half_ka_v2_hm.cpp
 
 OBJS = $(notdir $(SRCS:.cpp=.o))
 
@@ -349,15 +345,9 @@ endif
 ### ==========================================================================
 
 ### 3.1 Selecting compiler (default = gcc)
-ifeq ($(MAKELEVEL),0)
-       export ENV_CXXFLAGS := $(CXXFLAGS)
-       export ENV_DEPENDFLAGS := $(DEPENDFLAGS)
-       export ENV_LDFLAGS := $(LDFLAGS)
-endif
-
-CXXFLAGS = $(ENV_CXXFLAGS) -Wall -Wcast-qual -fno-exceptions -std=c++17 -DNNUE_EMBEDDING_OFF $(EXTRACXXFLAGS)
-DEPENDFLAGS = $(ENV_DEPENDFLAGS) -std=c++17
-LDFLAGS = $(ENV_LDFLAGS) $(EXTRALDFLAGS)
+CXXFLAGS += -Wall -Wcast-qual -fno-exceptions -std=c++17 -DNNUE_EMBEDDING_OFF $(EXTRACXXFLAGS)
+DEPENDFLAGS += -std=c++17
+LDFLAGS += $(EXTRALDFLAGS)
 
 ifeq ($(COMP),)
 	COMP=gcc
@@ -371,7 +361,7 @@ ifeq ($(COMP),gcc)
 	ifeq ($(arch),$(filter $(arch),armv7 armv8))
 		ifeq ($(OS),Android)
 			CXXFLAGS +=
-			LDFLAGS += -lgcov
+			LDFLAGS +=
 		endif
 	else
 		CXXFLAGS += -m$(bits)
@@ -436,7 +426,7 @@ ifeq ($(COMP),clang)
 	ifeq ($(arch),$(filter $(arch),armv7 armv8))
 		ifeq ($(OS),Android)
 			CXXFLAGS += -m$(bits)
-			LDFLAGS += -m$(bits) -static-libstdc++
+			LDFLAGS += -m$(bits) -static-libstdc++	
 		endif
 	else
 		CXXFLAGS += -m$(bits)
@@ -548,21 +538,21 @@ ifeq ($(optimize),yes)
 
 	ifeq ($(comp),gcc)
 		ifeq ($(OS), Android)
-			CXXFLAGS += -fno-gcse -march=native
+			CXXFLAGS += -march=native
 		endif
 	endif
 
-	ifeq ($(KERNEL),Darwin)
-		ifeq ($(comp),$(filter $(comp),clang icc))
-			CXXFLAGS += -mdynamic-no-pic
-		endif
+    ifeq ($(KERNEL),Darwin)
+        ifeq ($(comp),$(filter $(comp),clang icc))
+            CXXFLAGS += -mdynamic-no-pic
+        endif
 
-		ifeq ($(comp),gcc)
-			ifneq ($(arch),arm64)
-				CXXFLAGS += -mdynamic-no-pic
-			endif
-		endif
-	endif
+        ifeq ($(comp),gcc)
+            ifneq ($(arch),arm64)
+                CXXFLAGS += -mdynamic-no-pic
+            endif
+        endif
+    endif
 
 	ifeq ($(comp),clang)
 		CXXFLAGS += -fexperimental-new-pass-manager
@@ -826,6 +816,30 @@ install:
 # clean all
 clean: objclean profileclean
 	@rm -f .depend *~ core
+
+# evaluation network (nnue)
+net:
+	$(eval nnuenet := $(shell grep EvalFileDefaultName evaluate.h | grep define | sed 's/.*\(nn-[a-z0-9]\{12\}.nnue\).*/\1/'))
+	@echo "Default net: $(nnuenet)"
+	$(eval nnuedownloadurl := https://tests.stockfishchess.org/api/nn/$(nnuenet))
+	$(eval curl_or_wget := $(shell if hash curl 2>/dev/null; then echo "curl -skL"; elif hash wget 2>/dev/null; then echo "wget -qO-"; fi))
+	@if test -f "$(nnuenet)"; then \
+            echo "Already available."; \
+         else \
+            if [ "x$(curl_or_wget)" = "x" ]; then \
+               echo "Automatic download failed: neither curl nor wget is installed. Install one of these tools or download the net manually"; exit 1; \
+            else \
+               echo "Downloading $(nnuedownloadurl)"; $(curl_or_wget) $(nnuedownloadurl) > $(nnuenet);\
+            fi; \
+        fi;
+	$(eval shasum_command := $(shell if hash shasum 2>/dev/null; then echo "shasum -a 256 "; elif hash sha256sum 2>/dev/null; then echo "sha256sum "; fi))
+	@if [ "x$(shasum_command)" != "x" ]; then \
+	    if [ "$(nnuenet)" != "nn-"`$(shasum_command) $(nnuenet) | cut -c1-12`".nnue" ]; then \
+                echo "Failed download or $(nnuenet) corrupted, please delete!"; exit 1; \
+            fi \
+         else \
+            echo "shasum / sha256sum not found, skipping net validation"; \
+        fi
 
 # clean binaries and objects
 objclean:
