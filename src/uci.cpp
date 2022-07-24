@@ -43,6 +43,12 @@ namespace {
   // FEN string of the initial position, normal chess
   const char* StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
+  // GCC PGO fix
+  #ifdef __GNUC__
+    #ifndef __clang__
+      extern "C" void __gcov_dump();
+    #endif
+  #endif
 
   // position() is called when engine receives the "position" UCI command.
   // The function sets up the position described in the given FEN string ("fen")
@@ -176,6 +182,13 @@ namespace {
     elapsed = now() - elapsed + 1; // Ensure positivity to avoid a 'divide by zero'
 
     dbg_print(); // Just before exiting
+
+    // GCC PGO fix
+    #ifdef __GNUC__
+      #ifndef __clang__
+          __gcov_dump();
+      #endif
+    #endif
 
     cerr << "\n==========================="
          << "\nTotal time (ms) : " << elapsed
