@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
 
   UCI::init(Options);
   Tune::init();
-  nnue.init("default.net");
+  nnue.init("default2.net");
   Bitboards::init();
   Position::init();
   Threads.set(size_t(Options["Threads"]));
