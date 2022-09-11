@@ -25,8 +25,8 @@
 #include "types.h"
 
 constexpr int INPUT_WEIGHTS  = 12 * 64;
-constexpr int HIDDEN_BIAS    = 256;
-constexpr int HIDDEN_WEIGHTS = 256;
+constexpr int HIDDEN_BIAS    = 512;
+constexpr int HIDDEN_WEIGHTS = 512;
 constexpr int OUTPUT_BIAS    = 1;
 
 class NeuralNet {
